@@ -1,0 +1,203 @@
+import React, { useState } from 'react';
+import { QuizQuestion, QuizSession } from '../types';
+
+interface QuizViewProps {
+  questions: QuizQuestion[];
+  onComplete: (score: number) => void;
+  onRetake: () => void;
+  onNewTopic: () => void;
+}
+
+export const QuizView: React.FC<QuizViewProps> = ({ questions, onComplete, onRetake, onNewTopic }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [showResult, setShowResult] = useState(false); // Result for current question
+  const [correctCount, setCorrectCount] = useState(0);
+  const [completed, setCompleted] = useState(false);
+
+  const currentQuestion = questions[currentIndex];
+  // Calculate total points: each question is 10 marks. Max 70.
+  const totalMarks = questions.length * 10;
+  const currentMarks = correctCount * 10;
+
+  const handleOptionSelect = (index: number) => {
+    if (showResult) return;
+    setSelectedOption(index);
+  };
+
+  const checkAnswer = () => {
+    if (selectedOption === null) return;
+    
+    const isCorrect = selectedOption === currentQuestion.correctAnswerIndex;
+    if (isCorrect) {
+      setCorrectCount(prev => prev + 1);
+    }
+    setShowResult(true);
+  };
+
+  const nextQuestion = () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+      setSelectedOption(null);
+      setShowResult(false);
+    } else {
+      setCompleted(true);
+      // Determine if final question was correct to include in final score callback
+      const finalScore = correctCount + (selectedOption === currentQuestion.correctAnswerIndex ? 1 : 0);
+      onComplete(finalScore * 10);
+    }
+  };
+
+  if (completed) {
+    const finalScore = correctCount * 10; // Out of 70
+    
+    let grade = "";
+    let gradeColor = "";
+    let message = "";
+
+    // Grading Logic:
+    // Total: 70
+    // < 30: Fail (0-29)
+    // 30-49: Credit
+    // 50-70: Best Performance
+    if (finalScore >= 50) {
+      grade = "Best Performance";
+      gradeColor = "text-green-400";
+      message = "Outstanding! You've mastered this topic.";
+    } else if (finalScore >= 30) {
+      grade = "Credit";
+      gradeColor = "text-yellow-400";
+      message = "Good job! You have a solid understanding.";
+    } else {
+      grade = "Fail";
+      gradeColor = "text-red-400";
+      message = "Don't worry. Review the lesson and try again.";
+    }
+
+    return (
+      <div className="max-w-xl mx-auto text-center animate-slide-up">
+        <div className="bg-surface rounded-3xl p-10 shadow-2xl border border-slate-700/50">
+          <div className={`w-32 h-32 mx-auto rounded-full flex flex-col items-center justify-center mb-6 shadow-lg border-4 ${finalScore >= 50 ? 'border-green-500 bg-green-500/10' : finalScore >= 30 ? 'border-yellow-500 bg-yellow-500/10' : 'border-red-500 bg-red-500/10'}`}>
+            <span className={`text-4xl font-bold ${gradeColor}`}>{finalScore}</span>
+            <span className="text-xs text-slate-400 uppercase tracking-widest mt-1">out of {totalMarks}</span>
+          </div>
+          
+          <h2 className={`text-3xl font-heading font-bold mb-2 ${gradeColor}`}>{grade}</h2>
+          <p className="text-slate-400 mb-8 text-lg">
+            {message}
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+             <button onClick={onRetake} className="px-6 py-3 rounded-xl bg-slate-700 text-white font-semibold hover:bg-slate-600 transition">
+                Retake Exam
+             </button>
+             <button onClick={onNewTopic} className="px-6 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition shadow-lg shadow-primary/25">
+                New Topic
+             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto animate-fade-in pb-20">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+         <h2 className="text-xl font-heading font-bold text-white">Final Exam</h2>
+         <div className="px-4 py-1 rounded-full bg-slate-800 border border-slate-700 text-sm text-slate-300">
+            {currentIndex + 1} / {questions.length}
+         </div>
+      </div>
+
+      <div className="bg-surface rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-700/50 relative overflow-hidden">
+        {/* Question Text */}
+        <h2 className="text-2xl font-heading font-bold text-white mb-8 leading-snug">
+          {currentQuestion.question}
+        </h2>
+
+        <div className="space-y-4">
+          {currentQuestion.options.map((option, idx) => {
+            let stateClass = "border-slate-700 hover:border-slate-500 bg-slate-800/50";
+            
+            if (showResult) {
+               if (idx === currentQuestion.correctAnswerIndex) {
+                 stateClass = "border-green-500 bg-green-500/10 text-green-400";
+               } else if (idx === selectedOption) {
+                 stateClass = "border-red-500 bg-red-500/10 text-red-400";
+               } else {
+                 stateClass = "border-slate-800 opacity-30";
+               }
+            } else if (selectedOption === idx) {
+              stateClass = "border-primary bg-primary/10 text-primary";
+            }
+
+            return (
+              <button
+                key={idx}
+                onClick={() => handleOptionSelect(idx)}
+                disabled={showResult}
+                className={`w-full text-left p-5 rounded-xl border-2 transition-all duration-200 font-medium flex items-center group ${stateClass}`}
+              >
+                  <div className={`w-8 h-8 rounded-full border-2 mr-4 flex-shrink-0 flex items-center justify-center text-sm font-bold transition-colors
+                    ${showResult && idx === currentQuestion.correctAnswerIndex ? 'border-green-500 bg-green-500 text-white' : 
+                      selectedOption === idx ? 'border-primary bg-primary text-white' : 'border-slate-600 text-slate-400 group-hover:border-slate-400'}
+                  `}>
+                    {String.fromCharCode(65 + idx)}
+                  </div>
+                  <span className="text-lg">{option}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Feedback Area */}
+        {showResult && (
+           <div className="mt-8 p-6 rounded-2xl bg-slate-900/80 border border-slate-700 animate-slide-up">
+              <div className="flex items-start gap-4">
+                 <div className="mt-1">
+                    {selectedOption === currentQuestion.correctAnswerIndex ? (
+                       <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                         <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                       </div>
+                    ) : (
+                       <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                         <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                       </div>
+                    )}
+                 </div>
+                 <div>
+                    <p className={`font-bold text-lg mb-1 ${selectedOption === currentQuestion.correctAnswerIndex ? 'text-green-400' : 'text-red-400'}`}>
+                       {selectedOption === currentQuestion.correctAnswerIndex ? 'Correct Answer (+10 marks)' : 'Incorrect'}
+                    </p>
+                    <p className="text-slate-300 leading-relaxed">{currentQuestion.explanation}</p>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        <div className="mt-10 flex justify-end">
+          {!showResult ? (
+            <button
+              onClick={checkAnswer}
+              disabled={selectedOption === null}
+              className="px-8 py-4 rounded-xl bg-primary text-white font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition shadow-lg shadow-primary/20"
+            >
+              Check Answer
+            </button>
+          ) : (
+             <button
+              onClick={nextQuestion}
+              className="px-8 py-4 rounded-xl bg-secondary text-white font-bold text-lg hover:bg-secondary/90 transition shadow-lg shadow-secondary/20 flex items-center"
+            >
+              {currentIndex < questions.length - 1 ? 'Next Question' : 'Finish Exam'}
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
